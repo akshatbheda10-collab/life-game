@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Life Game: Jobs, Cars, Houses & Game Board Tracker</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f4f6f9; margin: 0; padding: 20px;
+      display: flex; flex-direction: column; align-items: center; gap: 20px;
+    }
+    #gateOverlay {
+      position: fixed; inset: 0; background: rgba(15,23,42,.95); z-index:1000;
+      display:flex; justify-content:center; align-items:center; padding:20px;
+    }
+    .gate-card { background:#fff; padding:30px; border-radius:16px; box-shadow:0 10px 25px rgba(0,0,0,.2); text-align:center; width:100%; max-width:400px; }
+    .gate-card h1 { margin-top:0; color:#1e293b; font-size:24px; }
+    .gate-card p { color:#64748b; font-size:15px; margin-bottom:20px; font-weight:600; }
+    .card { background:#fff; width:100%; max-width:750px; padding:20px; border-radius:12px; box-shadow:0 4px 12px rgba(0,0,0,.08); display:flex; flex-direction:column; align-items:center; }
+    h2 { margin-top:0; text-align:center; color:#2c3e50; }
+    .turn-banner { width:100%; background:#34495e; color:#fff; padding:12px; border-radius:8px; text-align:center; font-size:16px; margin-bottom:10px; display:flex; flex-direction:column; gap:4px; }
+    .turn-banner-main { font-weight:bold; }
+    .turn-banner-sub { font-size:14px; color:#38bdf8; font-weight:600; }
+    .board-container { width:100%; background:#0f172a; border-radius:12px; padding:15px; color:white; margin-bottom:15px; max-height:400px; overflow-y:auto; }
+    .board-title { font-size:14px; text-transform:uppercase; letter-spacing:1px; color:#94a3b8; margin-bottom:10px; text-align:center; font-weight:bold; }
+    .board-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:8px; }
+    .board-tile { background:#1e293b; border:1px solid #334155; border-radius:8px; padding:8px; min-height:75px; display:flex; flex-direction:column; justify-content:space-between; position:relative; }
+    .board-tile.active-tile { border:2px solid #38bdf8; background:#0f2b48; }
+    .tile-number { font-size:10px; color:#64748b; font-weight:bold; }
+    .tile-label { font-size:11px; font-weight:600; color:#f1f5f9; line-height:1.2; }
+    .tile-tokens { display:flex; flex-wrap:wrap; gap:4px; margin-top:4px; }
+    .player-token { font-size:10px; background:#ec4899; color:white; padding:2px 6px; border-radius:10px; font-weight:bold; }
+    .wheel-container { position:relative; margin:15px 0; }
+    .pointer { position:absolute; top:-12px; left:50%; transform:translateX(-50%); width:0;height:0; border-left:12px solid transparent; border-right:12px solid transparent; border-top:24px solid #e74c3c; z-index:10; }
+    canvas { border-radius:50%; box-shadow:0 4px 10px rgba(0,0,0,.15); max-width:100%; height:auto; }
+    #spinResult { margin-top:10px; font-size:20px; font-weight:bold; color:#2c3e50; min-height:28px; text-align:center; }
+    .wheel-presets { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; width:100%; }
+    .preset-btn { flex:1 1 22%; padding:8px; font-size:12px; font-weight:bold; background:#e2e8f0; border:none; border-radius:6px; cursor:pointer; color:#334155; }
+    .preset-btn.active { background:#3498db; color:#fff; }
+    .job-card-box { width:100%; background:#f1f5f9; border:2px dashed #94a3b8; border-radius:8px; padding:12px; text-align:center; margin-bottom:15px; }
+    .job-title-display { font-size:18px; font-weight:bold; color:#1e293b; margin-top:4px; }
+    .job-salary-display { font-size:14px; color:#16a34a; font-weight:bold; }
+    .balance-container { width:100%; text-align:center; background:#ecf0f1; padding:15px; border-radius:8px; margin-bottom:20px; }
+    .balance-title { font-size:14px; color:#7f8c8d; text-transform:uppercase; letter-spacing:1px; }
+    .balance-amount { font-size:28px; font-weight:bold; color:#2c3e50; margin-top:5px; }
+    .form-row { display:flex; gap:12px; width:100%; }
+    .form-main { flex:1; }
+    .form-group { width:100%; margin-bottom:12px; }
+    label { display:block; font-size:13px; color:#34495e; margin-bottom:4px; font-weight:bold; }
+    input, select { width:100%; padding:10px; font-size:14px; border:1px solid #ccc; border-radius:6px; }
+    .hidden { display:none !important; }
+    .modifier-sidebar { width:110px; display:flex; flex-direction:column; gap:4px; }
+    .modifier-label { font-size:11px; font-weight:bold; color:#7f8c8d; text-transform:uppercase; margin-top:4px; }
+    .modifier-grid { display:grid; grid-template-columns:1fr 1fr; gap:4px; }
+    .modifier-btn { padding:6px 2px; font-size:12px; font-weight:bold; border:1px solid #cbd5e1; background:#f1f5f9; color:#475569; border-radius:6px; cursor:pointer; text-align:center; transition:all .2s; margin:0; }
+    .modifier-btn.active { background:#e74c3c; color:#fff; border-color:#c0392b; }
+    button.submit-btn { width:100%; padding:12px; font-size:15px; font-weight:bold; color:#fff; background:#2ecc71; border:none; border-radius:6px; cursor:pointer; margin-top:10px; }
+    button.submit-btn:hover { background:#27ae60; }
+    button.turn-btn { background:#8e44ad; }
+    button.turn-btn:hover { background:#732d91; }
+    .history-title { width:100%; font-size:16px; font-weight:bold; color:#2c3e50; margin-top:20px; border-bottom:2px solid #ecf0f1; padding-bottom:5px; }
+    .players-history-container { width:100%; margin-top:10px; display:flex; flex-direction:column; gap:15px; max-height:450px; overflow-y:auto; }
+    .player-card { background:#f8f9fa; border:1px solid #e2e8f0; border-radius:8px; padding:12px; transition:all .2s ease; }
+    .player-card.active-player { border:2px solid #8e44ad; box-shadow:0 0 8px rgba(142,68,173,.3); background:#fff; }
+    .player-card-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; padding-bottom:6px; border-bottom:1px dashed #cbd5e1; }
+    .player-card-name { font-weight:bold; font-size:16px; color:#3498db; display:flex; align-items:center; gap:6px; }
+    .active-badge { font-size:10px; background:#8e44ad; color:#fff; padding:2px 6px; border-radius:10px; text-transform:uppercase; letter-spacing:.5px; }
+    .player-card-total { font-weight:bold; font-size:16px; }
+    .family-badges { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
+    .family-badge { font-size:11px; background:#e2e8f0; color:#334155; padding:3px 8px; border-radius:12px; font-weight:500; }
+    .family-badge.job { background:#dcfce7; color:#15803d; }
+    .family-badge.house { background:#fef3c7; color:#92400e; }
+    .family-badge.car { background:#e0e7ff; color:#3730a3; }
+    .family-actions { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:10px; }
+    .family-btn { font-size:11px; padding:6px 8px; border:1px solid #cbd5e1; background:#fff; border-radius:4px; cursor:pointer; }
+    .family-btn:hover { background:#f1f5f9; }
+    .family-btn.chance-btn { background:#fef08a; border-color:#fde047; font-weight:bold; }
+    .family-btn.chance-btn:hover { background:#fef9c3; }
+    .transaction-list { list-style:none; padding:0; margin:0; }
+    .transaction-item { display:flex; justify-content:space-between; align-items:center; background:#fff; padding:8px 10px; border-radius:4px; margin-bottom:6px; border-right:4px solid #ccc; font-size:13px; }
+    .transaction-item.income { border-right-color:#2ecc71; }
+    .transaction-item.expense { border-right-color:#e74c3c; }
+    .empty-message { text-align:center; color:#7f8c8d; font-size:14px; padding:10px; }
+    .error-text { color:#e74c3c; font-size:13px; margin-top:8px; font-weight:bold; }
+    @media(max-width:600px) {
+      body { padding:10px; }
+      .form-row { flex-direction:column; }
+      .modifier-sidebar { width:100%; }
+      .modifier-grid { grid-template-columns:repeat(5,1fr); }
+      .card { padding:14px; }
+      .board-grid { grid-template-columns:repeat(auto-fill,minmax(95px,1fr)); }
+    }
+  </style>
+</head>
+<body>
+<div id="gateOverlay">
+  <div class="gate-card">
+    <h1>Life Game Math Lock 🔒</h1>
+    <p id="mathQuestion">Solve to enter: Loading challenge...</p>
+    <input type="text" id="gamePasscode" placeholder="Your Answer" style="text-align:center;font-size:18px;">
+    <button class="submit-btn" onclick="verifyGamePasscode()">Enter Game</button>
+    <div id="gateError" class="error-text hidden">Incorrect answer. Try again!</div>
+  </div>
+</div>
+
+<section class="card">
+  <h2>Interactive Game Board (150 Path Spaces) 🎲</h2>
+  <div class="board-container">
+    <div class="board-title">Life Journey Path (150 Spaces)</div>
+    <div class="board-grid" id="boardGrid"></div>
+  </div>
+</section>
+
+<section class="card">
+  <div class="turn-banner">
+    <div class="turn-banner-main" id="turnBanner">Global Turn: 1</div>
+    <div class="turn-banner-sub" id="activePlayerBanner">Active Player: None</div>
+  </div>
+  <h2>Spinner Wheels</h2>
+  <div class="wheel-presets">
+    <button class="preset-btn active" onclick="loadPreset('numbers',this)">Move (1-6)</button>
+    <button class="preset-btn" onclick="loadPreset('baby',this)">Baby 👶</button>
+    <button class="preset-btn" onclick="loadPreset('houses',this)">Houses 🏠</button>
+    <button class="preset-btn" onclick="loadPreset('cars',this)">Cars 🚗</button>
+    <button class="preset-btn" onclick="loadPreset('chance',this)">Life Chance 🎲</button>
+    <button class="preset-btn" onclick="loadPreset('career',this)">Career Boost 📈</button>
+  </div>
+  <div class="wheel-container"><div class="pointer"></div><canvas id="wheel" width="300" height="300"></canvas></div>
+  <button class="submit-btn" onclick="spin()">Spin Wheel</button>
+  <div id="spinResult"></div>
+</section>
+
+<section class="card">
+  <h2>Job Card Deck 💼</h2>
+  <div class="job-card-box">
+    <div style="font-size:12px;color:#64748b;font-weight:bold;text-transform:uppercase;">Current Job Card Drawn</div>
+    <div class="job-title-display" id="drawnJobTitle">No Job Drawn</div>
+    <div class="job-salary-display" id="drawnJobSalary">$0 / turn</div>
+  </div>
+  <button class="submit-btn" style="background:#e67e22;" onclick="drawJobCard()">Draw Random Job Card</button>
+</section>
+
+<main class="card">
+  <h2>Multi-Person Life Tracker</h2>
+  <div class="balance-container">
+    <div class="balance-title">Group Grand Total</div>
+    <div class="balance-amount" id="grandBalance">$0.00</div>
+  </div>
+  <form id="transactionForm" style="width:100%;">
+    <div class="form-row">
+      <div class="form-main">
+        <div class="form-group">
+          <label for="personSelect">Select Person / Player</label>
+          <select id="personSelect" onchange="togglePersonInput()"><option value="NEW">+ Add New Person</option></select>
+        </div>
+        <div id="newPersonGroup">
+          <div class="form-group"><label for="personName">New Person Name</label><input type="text" id="personName" placeholder="e.g., Alex, Jordan, Sam" maxlength="50"></div>
+          <div class="form-group"><label for="personPassword">Set Personal Password</label><input type="password" id="personPassword" placeholder="Create PIN or Password"></div>
+          <div class="form-group"><label for="genderSelect">Gender</label><select id="genderSelect"><option value="Female">Female</option><option value="Male">Male</option></select></div>
+        </div>
+        <div id="existingPersonAuth" class="hidden">
+          <div class="form-group"><label for="authPassword">Enter Player Password</label><input type="password" id="authPassword" placeholder="Player's Password"></div>
+        </div>
+        <div class="form-group"><label for="amount">Base Amount ($)</label><input type="number" id="amount" placeholder="0.00" step="0.01" min="0.01" required></div>
+        <div class="form-group"><label for="type">Type</label><select id="type"><option value="income">Income (+)</option><option value="expense">Expense (-)</option></select></div>
+      </div>
+      <div class="modifier-sidebar">
+        <label>Modify</label>
+        <div class="modifier-label">Multiply</div>
+        <div class="modifier-grid">
+          <button type="button" class="modifier-btn active" onclick="setModifier('mult',1,this)">1x</button>
+          <button type="button" class="modifier-btn" onclick="setModifier('mult',2,this)">2x</button>
+          <button type="button" class="modifier-btn" onclick="setModifier('mult',3,this)">3x</button>
+          <button type="button" class="modifier-btn" onclick="setModifier('mult',5,this)">5x</button>
+          <button type="button" class="modifier-btn" onclick="setModifier('mult',10,this)">10x</button>
+        </div>
+        <div class="modifier-label">Divide</div>
+        <div class="modifier-grid">
+          <button type="button" class="modifier-btn" onclick="setModifier('div',2,this)">÷2</button>
+          <button type="button" class="modifier-btn" onclick="setModifier('div',3,this)">÷3</button>
+          <button type="button" class="modifier-btn" onclick="setModifier('div',5,this)">÷5</button>
+          <button type="button" class="modifier-btn" onclick="setModifier('div',10,this)">÷10</button>
+        </div>
+      </div>
+    </div>
+    <button type="submit" class="submit-btn">Add Manual Transaction</button>
+  </form>
+  <button type="button" class="submit-btn turn-btn" onclick="nextPlayerTurn()">Next Player Turn (Collect Salary) ➔</button>
+  <div class="history-title">Player Histories</div>
+  <div class="players-history-container" id="playersHistoryContainer"><div class="empty-message">No player history yet.</div></div>
+</main>
+
+<script>
+const mathChallenges=[
+ {q:"Solve for x: 3x - 5 = 34",a:"13"},{q:"What is 15% of 200?",a:"30"},
+ {q:"Solve for y: 2y + 8 = 24",a:"8"},{q:"Evaluate: -4 × (-7)",a:"28"},
+ {q:"Solve for z: 5z - 12 = 33",a:"9"}
+];
+const currentMath=mathChallenges[Math.floor(Math.random()*mathChallenges.length)];
+document.getElementById('mathQuestion').innerHTML=`Solve to enter: <strong>${currentMath.q}</strong>`;
+function verifyGamePasscode(){
+ const entered=document.getElementById('gamePasscode').value.trim();
+ if(entered===currentMath.a) document.getElementById('gateOverlay').style.display='none';
+ else document.getElementById('gateError').classList.remove('hidden');
+}
+document.getElementById('gamePasscode').addEventListener('keydown',e=>{if(e.key==='Enter')verifyGamePasscode()});
+
+const rawTiles=[
+["Start Line 🏁",0,0],["College Degree 🎓",0,0],["Get First Job 💼",0,200],["Pay Rent -$300 💸",0,-300],
+["Buy Starter Car 🚗",0,-500],["Payday +Salary 💵",0,400],["Shortcut! Skip +2 ⏩",2,0],["Get Married 💍",0,-200],
+["Baby Chance 👶",0,0],["Life Insurance -$100 📄",0,-100],["Payday +Salary 💵",0,400],["Detour! Go Back -2 ⏪",-2,0],
+["Buy First House 🏠",0,-1000],["Stock Gain +$500 📈",0,500],["Car Maintenance -$200 🔧",0,-200],["Payday +Salary 💵",0,400],
+["Promotion Bonus +$400 ⭐",0,400],["Sprint Ahead +3 ⏩",3,0],["Vacation Trip -$300 ✈️",0,-300],["Baby Chance 👶",0,0],
+["Payday +Salary 💵",0,400],["Home Renovation -$400 🛠️",0,-400],["Tax Refund +$350 🧾",0,350],["Traffic Delay! Back -1 ⏪",-1,0],
+["Payday +Salary 💵",0,400],["Medical Bill -$150 🏥",0,-150],["Inheritance +$1000 🎁",0,1000],["Buy SUV 🚙",0,-800],
+["Payday +Salary 💵",0,400],["Fast Track! Ahead +4 🚀",4,0],["Baby Chance 👶",0,0],["New Pet -$100 🐶",0,-100],
+["Payday +Salary 💵",0,400],["Crypto Gain +$600 🚀",0,600],["Shopping Spree -$250 🛍️",0,-250],["Wrong Turn! Back -3 ⏪",-3,0],
+["Payday +Salary 💵",0,400],["Buy Vacation Home 🏖️",0,-1200],["Career Upgrade +$300 📈",0,300],["Car Breakdown -$300 🚗",0,-300],
+["Payday +Salary 💵",0,400],["Baby Chance 👶",0,0],["Lucky Find! Ahead +2 ⏩",2,150],["Win Lottery +$800 🎟️",0,800],
+["Payday +Salary 💵",0,400],["Roof Repair -$500 🏠",0,-500],["Charity Donation -$200 🤝",0,-200],["Payday +Salary 💵",0,400],
+["Side Hustle +$400 💡",0,400],["Blank Space ⏹️",0,0]
+];
+const boardTiles=Array.from({length:150},(_,i)=>{
+ if(i===49)return{label:"Blank Space ⏹️",delta:0,money:0};
+ if(i===149)return{label:"Retirement Victory 🏆",delta:0,money:5000};
+ const t=rawTiles[i%(rawTiles.length-1)]; return{label:t[0],delta:t[1],money:t[2]};
+});
+
+let globalTurn=1,activePlayerIndex=0,currentDrawnJob=null;
+const jobDeck=[
+["Doctor 🩺",1200],["Software Engineer 💻",950],["Lawyer ⚖️",1100],["Teacher 🍎",500],["Artist 🎨",400],
+["Chef 🍳",600],["Pilot ✈️",1300],["Firefighter 🚒",650],["Scientist 🔬",850],["Entrepreneur 🚀",1500],
+["Architect 📐",900],["Astronaut 🚀",1600],["Game Designer 🎮",800]
+].map(x=>({title:x[0],salary:x[1]}));
+function drawJobCard(){
+ currentDrawnJob=jobDeck[Math.floor(Math.random()*jobDeck.length)];
+ document.getElementById('drawnJobTitle').textContent=currentDrawnJob.title;
+ document.getElementById('drawnJobSalary').textContent=`$${currentDrawnJob.salary} / turn`;
+}
+
+const canvas=document.getElementById('wheel'),ctx=canvas.getContext('2d');
+const presets={
+ numbers:['1 Space 🎲','2 Spaces 🎲','3 Spaces 🎲','4 Spaces 🎲','5 Spaces 🎲','6 Spaces 🎲'],
+ baby:['Baby Boy 👶','Baby Girl 👧','Twin Boys 👶👶','Twin Girls 👧👧','Boy & Girl Twins 👶👧','Triplets! 👶👶👧','Quadruplets! 👶👶👧👧','No Baby ❌'],
+ houses:['Apartment','Beach House','Mansion','Cabin','Suburban House','Penthouse','Tiny Home','Villa','Private Island 🏝️'],
+ cars:['Sports Car','SUV','Sedan','Electric Car','Truck','Convertible','Minivan','Luxury Coupe','Supercar 🏎️'],
+ chance:['+$500 Bonus','Pay $200 Tax','Get Married','Have Baby','Buy Car','Buy House','Win $1000','Lose $300','Inheritance +$800'],
+ career:['Raise +$200/turn','Job Promotion','Pay Cut -$100','Bonus Pay +$500','Company Stock +$600']
+};
+let items=presets.numbers,currentPresetKey='numbers',currentAngle=0,isSpinning=false;
+const colorPalette=['#3498db','#e67e22','#9b59b6','#f1c40f','#1abc9c','#e74c3c','#2ecc71','#34495e','#16a085','#d35400'];
+function loadPreset(k,b){
+ if(isSpinning)return; currentPresetKey=k;items=presets[k];
+ document.querySelectorAll('.preset-btn').forEach(x=>x.classList.remove('active'));
+ if(b)b.classList.add('active');drawWheel();document.getElementById('spinResult').textContent='';
+}
+function drawWheel(){
+ const n=items.length,s=(2*Math.PI)/n,r=canvas.width/2;ctx.clearRect(0,0,canvas.width,canvas.height);
+ items.forEach((item,i)=>{
+  const a=currentAngle+i*s;ctx.beginPath();ctx.moveTo(r,r);ctx.arc(r,r,r,a,a+s);ctx.closePath();
+  ctx.fillStyle=colorPalette[i%colorPalette.length];ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();
+  ctx.save();ctx.translate(r,r);ctx.rotate(a+s/2);ctx.textAlign='right';ctx.fillStyle='#fff';ctx.font='bold 12px sans-serif';ctx.fillText(item,r-12,4);ctx.restore();
+ });
+}
+function spin(){
+ if(isSpinning)return;isSpinning=true;document.getElementById('spinResult').textContent='';
+ const spinAngle=Math.floor(Math.random()*360)+1440,duration=4000,start=performance.now();
+ function animate(time){
+  const p=Math.min((time-start)/duration,1),ease=1-Math.pow(1-p,3);currentAngle=spinAngle*Math.PI/180*ease;drawWheel();
+  if(p<1)requestAnimationFrame(animate);else{isSpinning=false;calculateWinner();}
+ } requestAnimationFrame(animate);
+}
+function calculateWinner(){
+ const n=items.length,s=2*Math.PI/n;
+ let a=(1.5*Math.PI-(currentAngle%(2*Math.PI)))%(2*Math.PI);if(a<0)a+=2*Math.PI;
+ const idx=Math.floor(a/s);document.getElementById('spinResult').textContent=`Result: ${items[idx]}`;
+ const names=Object.keys(playerData);
+ if(currentPresetKey==='numbers'&&names.length)advancePlayerPosition(names[activePlayerIndex],idx+1);
+}
+drawWheel();
+
+const playerData={};
+let modifierType='mult',modifierValue=1;
+const form=document.getElementById('transactionForm'),personSelect=document.getElementById('personSelect'),
+personInput=document.getElementById('personName'),personPasswordInput=document.getElementById('personPassword'),
+existingPersonAuth=document.getElementById('existingPersonAuth'),authPasswordInput=document.getElementById('authPassword'),
+genderSelect=document.getElementById('genderSelect'),newPersonGroup=document.getElementById('newPersonGroup'),
+amountInput=document.getElementById('amount'),typeInput=document.getElementById('type'),
+grandBalanceElement=document.getElementById('grandBalance'),playersHistoryContainer=document.getElementById('playersHistoryContainer');
+
+function setModifier(t,v,b){modifierType=t;modifierValue=v;document.querySelectorAll('.modifier-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active')}
+function togglePersonInput(){
+ const isNew=personSelect.value==='NEW';newPersonGroup.classList.toggle('hidden',!isNew);existingPersonAuth.classList.toggle('hidden',isNew);
+ personInput.required=isNew;personPasswordInput.required=isNew;authPasswordInput.required=!isNew;
+}
+function verifyPlayerPassword(name){
+ const entered=prompt(`Enter password for ${name}:`);
+ if(entered===playerData[name].password)return true;alert('Incorrect password!');return false;
+}
+function renderBoard(){
+ const grid=document.getElementById('boardGrid');grid.innerHTML='';const names=Object.keys(playerData);
+ boardTiles.forEach((tile,i)=>{
+  const d=document.createElement('div');d.className='board-tile';
+  if(names.length&&playerData[names[activePlayerIndex]]?.position===i)d.classList.add('active-tile');
+  d.innerHTML=`<div class="tile-number">SPACE ${i+1}</div><div class="tile-label">${tile.label}</div><div class="tile-tokens"></div>`;
+  const tokens=d.querySelector('.tile-tokens');
+  for(const [name,p] of Object.entries(playerData))if(p.position===i){const t=document.createElement('span');t.className='player-token';t.textContent=name;tokens.appendChild(t)}
+  grid.appendChild(d);
+ });
+}
+function advancePlayerPosition(name,moves){
+ if(!playerData[name])return;let pos=playerData[name].position||0;
+ let newPos=Math.min(boardTiles.length-1,Math.max(0,pos+moves)),tile=boardTiles[newPos];
+ if(tile.delta)newPos=Math.min(boardTiles.length-1,Math.max(0,newPos+tile.delta));
+ playerData[name].position=newPos;
+ if(tile.money){
+  const type=tile.money>0?'income':'expense',amt=Math.abs(tile.money);
+  playerData[name].transactions.push({amount:amt,type,desc:`Landed on: ${tile.label}`});
+  playerData[name].total+=type==='income'?amt:-amt;
+ }
+ updateUI();
+}
+function nextPlayerTurn(){
+ const names=Object.keys(playerData);if(!names.length){alert('Add a player first!');return}
+ const name=names[activePlayerIndex],p=playerData[name];
+ if(p.job){p.transactions.push({amount:p.job.salary,type:'income',desc:`Salary Collection (${p.job.title})`});p.total+=p.job.salary}
+ activePlayerIndex=(activePlayerIndex+1)%names.length;if(activePlayerIndex===0)globalTurn++;updateUI();
+}
+function updateUI(){
+ const names=Object.keys(playerData);document.getElementById('turnBanner').textContent=`Global Turn: ${globalTurn}`;
+ document.getElementById('activePlayerBanner').textContent=names.length?`Active Player: ${names[activePlayerIndex]}`:'Active Player: None';
+ let grand=0;playersHistoryContainer.innerHTML='';
+ if(!names.length)playersHistoryContainer.innerHTML='<div class="empty-message">No player history yet.</div>';
+ names.forEach((name,i)=>{
+  const p=playerData[name];grand+=p.total;const card=document.createElement('div');card.className=`player-card ${i===activePlayerIndex?'active-player':''}`;
+  const header=document.createElement('div');header.className='player-card-header';
+  const ns=document.createElement('div');ns.className='player-card-name';ns.innerHTML=`${name} (${p.gender==='Female'?'👩':'👨'}) ${i===activePlayerIndex?'<span class="active-badge">Active Turn</span>':''}`;
+  const total=document.createElement('div');total.className='player-card-total';total.style.color=p.total>=0?'#16a34a':'#dc2626';total.textContent=`$${p.total.toFixed(2)}`;
+  header.append(ns,total);
+  const badges=document.createElement('div');badges.className='family-badges';
+  if(p.job)badges.innerHTML+=`<span class="family-badge job">💼 ${p.job.title} ($${p.job.salary}/turn)</span>`;
+  p.houses.forEach(h=>badges.innerHTML+=`<span class="family-badge house">🏠 ${h}</span>`);
+  p.cars.forEach(c=>badges.innerHTML+=`<span class="family-badge car">🚗 ${c}</span>`);
+  const actions=document.createElement('div');actions.className='family-actions';
+  actions.innerHTML=`<button class="family-btn" onclick="assignDrawnJob('${name.replace(/'/g,"\\'")}')">Assign Job</button><button class="family-btn" onclick="addAsset('${name.replace(/'/g,"\\'")}','houses')">+ Add House</button><button class="family-btn" onclick="addAsset('${name.replace(/'/g,"\\'")}','cars')">+ Add Car</button><button class="family-btn chance-btn" onclick="quickSpinChance('${name.replace(/'/g,"\\'")}')">🎲 Quick Chance</button>`;
+  const list=document.createElement('ul');list.className='transaction-list';
+  p.transactions.slice().reverse().forEach(t=>{const li=document.createElement('li');li.className=`transaction-item ${t.type}`;li.innerHTML=`<span>${t.desc||'Manual Entry'}</span><span><strong>${t.type==='income'?'+':'-'}$${t.amount.toFixed(2)}</strong></span>`;list.appendChild(li)});
+  card.append(header,badges,actions,list);playersHistoryContainer.appendChild(card);
+ });
+ grandBalanceElement.textContent=`$${grand.toFixed(2)}`;renderBoard();
+}
+function assignDrawnJob(name){if(!currentDrawnJob){alert('Draw a job card first!');return}playerData[name].job=currentDrawnJob;updateUI()}
+function addAsset(name,cat){const item=prompt(`Enter ${cat==='houses'?'House':'Car'} name/type:`);if(item?.trim()){playerData[name][cat].push(item.trim());updateUI()}}
+function quickSpinChance(name){const r=presets.chance[Math.floor(Math.random()*presets.chance.length)];alert(`${name} spun Life Chance and got: ${r}`)}
+
+form.addEventListener('submit',e=>{
+ e.preventDefault();let target=personSelect.value;
+ if(target==='NEW'){
+  const name=personInput.value.trim(),pwd=personPasswordInput.value.trim(),gender=genderSelect.value;
+  if(!name||!pwd){alert('Please enter a name and password.');return}
+  if(playerData[name]){alert('A person with this name already exists.');return}
+  playerData[name]={password:pwd,gender,total:0,position:0,job:null,houses:[],cars:[],transactions:[]};target=name;
+  const opt=document.createElement('option');opt.value=name;opt.textContent=name;personSelect.appendChild(opt);personSelect.value=name;togglePersonInput();
+ }else if(!verifyPlayerPassword(target))return;
+ let base=parseFloat(amountInput.value);if(isNaN(base)||base<=0)return;
+ let final=modifierType==='mult'?base*modifierValue:base/modifierValue,type=typeInput.value;
+ playerData[target].transactions.push({amount:final,type,desc:`Manual ${type}`});playerData[target].total+=type==='income'?final:-final;
+ amountInput.value='';authPasswordInput.value='';updateUI();
+});
+renderBoard();
+</script>
+</body>
+</html>
